@@ -1,8 +1,10 @@
 import lombok.extern.slf4j.Slf4j;
+import mark.BugMarker;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 import util.CommandUtil;
 import util.ConfigUtil;
+import util.CsvUtil;
 import util.FileUtil;
 
 import java.io.IOException;
@@ -36,7 +38,6 @@ public class JarAnalyzer {
      * 注意：
      * 1. Maven仓库地址为包含maven-metadata.xml文件的URL
      * 2. URL必须以'/'结尾
-     *
      * @param mavenURL Maven仓库地址
      */
     public JarAnalyzer(String mavenURL) {
@@ -62,10 +63,8 @@ public class JarAnalyzer {
      * 注意：
      * 1. 仅在当前版本有源代码的情况下才会下载两个包
      * 2. 下载前会自动清空用于保存的文件夹
-     *
-     * @return this
      */
-    public JarAnalyzer download() {
+    public void download() {
         FileUtil.initDirectory(Paths.get(ConfigUtil.projectDir, projectName));
         // 可用版本计数
         int versionNum = 0;
@@ -101,14 +100,12 @@ public class JarAnalyzer {
         }
         // 输出可用版本占比
         log.info(String.format("Available Version Num: %d/%d", versionNum, versions.size()));
-        return this;
     }
 
     /**
      * 解压源代码包，解压后会删除压缩包
-     * @return this
      */
-    public JarAnalyzer unzip() {
+    public void unzip() {
         try {
             Files.list(Paths.get(ConfigUtil.projectDir, projectName))
                     .map(Path::toFile)
@@ -121,14 +118,12 @@ public class JarAnalyzer {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return this;
     }
 
     /**
      * 扫描各个版本的jar包生成扫描报告
-     * @return this
      */
-    public JarAnalyzer scan() {
+    public void scan() {
         FileUtil.initDirectory(Paths.get(ConfigUtil.reportDir, projectName));
         try {
             Files.list(Paths.get(ConfigUtil.projectDir, projectName))
@@ -142,7 +137,12 @@ public class JarAnalyzer {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return this;
+    }
+
+    public void analyse() {
+        List<String[]> result = BugMarker.markWithVersions(Paths.get(ConfigUtil.projectDir, projectName).toString(),
+                Paths.get(ConfigUtil.reportDir, projectName).toString());
+        CsvUtil.saveStrings(result, Paths.get(ConfigUtil.resultDir, projectName + ".csv").toString());
     }
 
     private String useMirror(String originURL) {
@@ -159,11 +159,19 @@ public class JarAnalyzer {
     }
 
     public static void main(String[] args) {
-        if (args.length == 1) {
-            JarAnalyzer downloader = new JarAnalyzer(args[0]);
-            downloader.download()
-                    .unzip()
-                    .scan();
+        if (args.length == 2) {
+            if ("--all-steps".equals(args[0]) || "--only-download".equals(args[0])) {
+                JarAnalyzer downloader = new JarAnalyzer(args[1]);
+                downloader.download();
+                downloader.unzip();
+                if ("--only-download".equals(args[0])) {
+                    return;
+                }
+                downloader.scan();
+                downloader.analyse();
+            } else if ("--only-analyse".equals(args[0])) {
+
+            }
         }
     }
 }
