@@ -34,7 +34,9 @@
 
 ```
 # 参数说明
---all-steps			完成所有步骤
---only-download		完成步骤1-3
+--all-steps <URL>         完成所有步骤
+--only-download <URL>     仅完成步骤1-3
+--only-scan <Path>        仅完成步骤4
+--only-analyse <Path>     仅完成步骤5
 ```
 

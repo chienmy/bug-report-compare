@@ -7,13 +7,14 @@ import util.ConfigUtil;
 import util.CsvUtil;
 import util.FileUtil;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -34,13 +35,28 @@ public class JarAnalyzer {
     private List<String> versions;
 
     /**
+     * 提供两种初始化方式：
+     * 1. http开头的URL
+     * 2. 配置类中projectDir目录下本地项目名
+     * @param initParam 初始化参数
+     */
+    public JarAnalyzer(String initParam) {
+        if (initParam.startsWith("http")) {
+            initByMavenURL(initParam);
+        } else {
+            this.projectName = initParam;
+            initByLocalFile();
+        }
+    }
+
+    /**
      * 根据Maven仓库地址初始化类，仅保留规整版本号的版本
      * 注意：
      * 1. Maven仓库地址为包含maven-metadata.xml文件的URL
      * 2. URL必须以'/'结尾
      * @param mavenURL Maven仓库地址
      */
-    public JarAnalyzer(String mavenURL) {
+    private void initByMavenURL(String mavenURL) {
         try {
             this.mavenURL = mavenURL;
             Path urlPath = Paths.get(mavenURL);
@@ -55,6 +71,23 @@ public class JarAnalyzer {
             log.info(String.format("Project Name: %s, Version Num: %d", projectName, versions.size()));
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private void initByLocalFile() {
+        Pattern pattern = Pattern.compile("[\\d+][.\\d+]*");
+        versions = new ArrayList<>();
+        // 检查版本号能不能找到对应的项目
+        for (File file : Paths.get(ConfigUtil.projectDir, projectName).toFile().listFiles()) {
+            if (file.getName().endsWith(".xml")) {
+                String versionName = file.getName().replace(".xml", "");
+                if (Files.exists(Paths.get(ConfigUtil.projectDir, projectName, versionName))) {
+                    Matcher matcher = pattern.matcher(versionName);
+                    if (matcher.find()) {
+                        versions.add(matcher.group(0));
+                    }
+                }
+            }
         }
     }
 
@@ -164,13 +197,15 @@ public class JarAnalyzer {
                 JarAnalyzer downloader = new JarAnalyzer(args[1]);
                 downloader.download();
                 downloader.unzip();
-                if ("--only-download".equals(args[0])) {
-                    return;
-                }
+                if ("--only-download".equals(args[0])) return;
                 downloader.scan();
                 downloader.analyse();
+            } else if ("--only-scan".equals(args[0])) {
+                JarAnalyzer downloader = new JarAnalyzer(args[1]);
+                downloader.scan();
             } else if ("--only-analyse".equals(args[0])) {
-
+                JarAnalyzer downloader = new JarAnalyzer(args[1]);
+                downloader.analyse();
             }
         }
     }
